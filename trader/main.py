@@ -15,6 +15,7 @@ from pathlib import Path
 
 import orders
 import pickers
+import reporter
 import quotes
 import strategies
 from models import Candidate
@@ -22,6 +23,7 @@ from trading import Trader
 
 log = logging.getLogger("main")
 CONFIG = Path(__file__).with_name("config.trading.jsonc")
+REPORTER = None  # 기록/알림 (main() 에서 만든다)
 
 
 def load_jsonc(text: str) -> dict:
@@ -92,8 +94,24 @@ def main() -> None:
         raise SystemExit("실계좌 주문은 막아 둠: 공통.모의투자=false 는 코드에서 지원하지 않음")
     orders.LIVE = a.live
     orders.EXCHANGE = common.get("거래소", "KRX")
+    mode = "live" if a.live else "dry-run"
     log.info("선택: 종목선택=%s 전략=%s 매수=%s 매도=%s (%s)", pick, strat, buy_mode, sell_modes,
              "LIVE(모의투자)" if a.live else "dry-run")
+
+    # 매매 내역 CSV 기록 + 텔레그램 알림 (--mock 은 기록도 알림도 하지 않음)
+    global REPORTER
+    if a.mock:
+        REPORTER = reporter.disabled()
+    else:
+        reporter.load_env()
+        rec, alarm = cfg.get("기록", {}), cfg.get("알림", {})
+        journal = reporter.Journal(Path(__file__).with_name(rec.get("폴더", "기록")), mode) \
+            if rec.get("CSV", True) else None
+        tg_on = alarm.get("텔레그램", False) and (a.live or alarm.get("dry-run에서도", True))
+        REPORTER = reporter.Reporter(journal, reporter.Telegram(tg_on), mode)
+        if journal:
+            log.info("매매 내역 CSV: %s", journal.path)
+    REPORTER.event(f"시작: {pick} / {strat} / {buy_mode} / {'+'.join(sell_modes)}")
 
     # 1. 종목선택 -> 2. 전략 필터
     cands = MOCK if a.mock else pickers.pick(pick, cfg["종목선택"][pick], cfg["종목선택_상세"][pick], strat)
@@ -104,7 +122,7 @@ def main() -> None:
 
     # 3. 매수
     held_fn = (lambda: {f"9{i:05d}" for i in range(a.mock_held)}) if a.mock else None  # mock: 가짜 기보유 종목
-    trader = Trader(common, {**cfg["매수"], **cfg["매도"]}, buy_mode, sell_modes, held_fn)
+    trader = Trader(common, {**cfg["매수"], **cfg["매도"]}, buy_mode, sell_modes, held_fn, REPORTER)
     for c in chosen:
         log.info("  통과: %s(%s) %+.1f%%", c.name, c.code, c.change_rate)
         trader.enter(c)
@@ -127,8 +145,21 @@ def main() -> None:
         tick += 1
         time.sleep(0 if a.mock else common.get("감시주기초", 10))
     log.info("종료: 매매 %d회, 실현손익 %+.0f", trader.trades, trader.realized)
+    REPORTER.event(f"종료: 매매 {trader.trades}회, 실현손익 {trader.realized:+,.0f}원")
+    REPORTER.flush()
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(message)s")
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        if REPORTER:
+            REPORTER.event("사용자가 중단함 (Ctrl+C)")
+            REPORTER.flush()
+        raise
+    except Exception as e:  # 예상 못한 오류도 알림으로 남긴 뒤 그대로 다시 던진다
+        if REPORTER:
+            REPORTER.event(f"오류로 중단: {type(e).__name__}: {str(e)[:150]}")
+            REPORTER.flush()
+        raise

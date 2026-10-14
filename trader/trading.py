@@ -10,8 +10,10 @@ log = logging.getLogger("trading")
 
 class Trader:
     def __init__(self, common: dict, trade_cfg: dict, buy_mode: str, sell_modes: list[str],
-                 held_fn=None):
-        """held_fn: 계좌에 실제 보유 중인 종목코드 집합을 돌려주는 함수 (기본: holdings.held_codes)."""
+                 held_fn=None, reporter=None):
+        """held_fn: 계좌에 실제 보유 중인 종목코드 집합을 돌려주는 함수 (기본: holdings.held_codes).
+        reporter: 매매 내역 CSV 기록 + 텔레그램 알림 (없으면 기록/알림 안 함)."""
+        self.reporter = reporter
         self.max_stocks = common.get("최대종목수")
         if not isinstance(self.max_stocks, int) or isinstance(self.max_stocks, bool) or self.max_stocks < 1:
             raise SystemExit("공통.최대종목수는 1 이상의 정수로 반드시 지정해야 함 (null/미지정 불가)")
@@ -50,13 +52,25 @@ class Trader:
         if c.get("매도기준") not in ("현재보유량", "최대보유량"):
             raise SystemExit('매도.분할매도.매도기준은 "현재보유량" 또는 "최대보유량"이어야 함')
 
+    def _report(self, method: str, *args, **kw) -> None:
+        """기록/알림은 실패해도 매매를 막지 않는다."""
+        if not self.reporter:
+            return
+        try:
+            getattr(self.reporter, method)(*args, **kw)
+        except Exception as e:
+            log.warning("기록/알림 실패: %s", e)
+
     # ---- 한도 ----
     def _blocked(self, why_prefix: str = "") -> str | None:
+        why = None
         if self.loss_limit is not None and self.realized <= -self.loss_limit:
-            return "하루손실한도 도달"
-        if self.max_trades is not None and self.trades >= self.max_trades:
-            return "하루매매횟수한도 도달"
-        return None
+            why = "하루손실한도 도달"
+        elif self.max_trades is not None and self.trades >= self.max_trades:
+            why = "하루매매횟수한도 도달"
+        if why:
+            self._report("event", f"{why} -> 신규 매수 중단", once=True)
+        return why
 
     def _qty_for(self, price: float, ratio: float = 1.0, amount: float | None = None) -> int:
         """amount(원)을 ratio 만큼 쓸 때의 주문 수량. amount 가 없으면 공통.종목당주문금액."""
@@ -75,6 +89,7 @@ class Trader:
             held = set(self.held_fn())
         except Exception as e:  # 확인할 수 없으면 매수하지 않는다
             log.error("  보유종목 조회 실패 -> %s 매수 중단: %s", code, e)
+            self._report("event", f"보유종목 조회 실패로 매수 중단 ({code}): {str(e)[:100]}", once=True)
             return False
         held |= {p.code for p in self.positions.values() if p.qty > 0}
         if code in held:
@@ -83,10 +98,12 @@ class Trader:
         if len(held) >= self.max_stocks:
             log.info("  최대종목수 %d 도달(계좌 보유 %d종목) -> %s 매수 건너뜀",
                      self.max_stocks, len(held), code)
+            self._report("event", f"최대종목수 {self.max_stocks} 도달(계좌 보유 {len(held)}종목) -> 신규 매수 안 함",
+                         once=True)
             return False
         return True
 
-    def _buy(self, pos: Position, qty: int, price: float) -> bool:
+    def _buy(self, pos: Position, qty: int, price: float, reason: str = "매수") -> bool:
         """모든 매수 주문의 단일 통로. 새 종목이면 최대종목수를 여기서 반드시 확인한다."""
         if qty < 1:
             return False
@@ -95,6 +112,8 @@ class Trader:
         orders.buy(pos.code, qty)
         pos.add(qty, price)
         self.trades += 1
+        self._report("trade", "매수", reason, pos.code, pos.name, qty, price, pos.avg, None,
+                     self.realized, pos.qty)
         return True
 
     def _sell(self, pos: Position, qty: int, price: float, reason: str) -> None:
@@ -102,11 +121,14 @@ class Trader:
         if qty < 1:
             return
         orders.sell(pos.code, qty)
-        self.realized += (price - pos.avg) * qty
+        pnl = (price - pos.avg) * qty
+        self.realized += pnl
         pos.qty -= qty
         self.trades += 1
         log.info("  매도[%s] %s %d주 @%.0f (평균 %.0f, 누적실현 %+.0f)",
                  reason, pos.code, qty, price, pos.avg, self.realized)
+        self._report("trade", "매도", reason, pos.code, pos.name, qty, price, pos.avg, pnl,
+                     self.realized, pos.qty)
 
     # ---- 매수 ----
     def enter(self, c: Candidate) -> None:
@@ -119,9 +141,10 @@ class Trader:
         pos = self.positions.setdefault(c.code, Position(c.code, c.name))
         if self.buy_mode == "일괄매수":
             amount = self.cfg["일괄매수"].get("주문금액")
-            bought = self._buy(pos, self._qty_for(c.price, amount=amount), c.price)
+            bought = self._buy(pos, self._qty_for(c.price, amount=amount), c.price, "일괄매수")
         else:  # 분할매수
-            bought = self._buy(pos, self._qty_for(c.price, 1 / self.split_n), c.price)  # 균등 분할 1회차
+            bought = self._buy(pos, self._qty_for(c.price, 1 / self.split_n), c.price,
+                               f"분할매수 1/{self.split_n}")  # 균등 분할 1회차
             if bought:
                 pos.buys_done = 1
         if bought:
@@ -146,7 +169,8 @@ class Trader:
         if pos.buys_done >= self.split_n or self._blocked():
             return
         if price <= pos.last_buy_price * (1 - cfg["추가매수_하락률"] / 100):
-            bought = self._buy(pos, self._qty_for(price, 1 / self.split_n), price)
+            bought = self._buy(pos, self._qty_for(price, 1 / self.split_n), price,
+                               f"추가매수 {pos.buys_done + 1}/{self.split_n}")
             pos.buys_done += 1
             if bought:
                 log.info("  추가매수[%d/%d] %s @%.0f 평균 %.0f", pos.buys_done, self.split_n,

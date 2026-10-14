@@ -36,8 +36,21 @@
   py trader\main.py --pick "실시간 조회 순위" --strategy "5% 하락" --buy 분할매수 --sell 스탑로스 분할매도
   py trader\main.py --live                                   모의투자 서버에 실제 주문
 
+[기록과 알림]  (config.trading.jsonc 의 "기록", "알림" 섹션에서 켜고 끔)
+  CSV 기록     trader\기록\매매내역_<dry-run|live>_<날짜>.csv  (매수/매도마다 한 줄, 엑셀로 열기 가능)
+  텔레그램     매수/매도, 한도 도달, 오류, 시작/종료를 알림
+  --mock 실행은 기록도 알림도 하지 않음
+  텔레그램 설정 (한 번만)
+    1) 텔레그램에서 @BotFather 에게 /newbot 으로 봇을 만들고 토큰을 받는다
+    2) 만든 봇과 대화를 시작하고 아무 메시지나 보낸다
+    3) 채팅 id 확인:  https://api.telegram.org/bot<토큰>/getUpdates  를 브라우저로 열어 "chat":{"id":숫자}
+    4) TGi\.env 에 두 줄을 추가 (.env 는 깃에 올라가지 않음)
+         TELEGRAM_BOT_TOKEN=<토큰>
+         TELEGRAM_CHAT_ID=<채팅 id>
+
 [주의]
   - --live 없이는 주문이 나가지 않음 (로그에 [dry-run] 으로 표시)
+  - 토큰은 .env 에만 둘 것 (설정 파일, 채팅, 깃에 붙여넣지 말 것)
   - 실제 키움 호출(--mock 아님)은 kiwoom 패키지(kwcli)가 설치된 환경에서 실행해야 함
   - 새 종목은 계좌 보유 종목 수가 "최대종목수" 이상이면 매수되지 않음
   - 설정은 config.trading.jsonc 에서 바꿈 (종목수/금액/한도/분할/손절 등)
