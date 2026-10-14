@@ -10,23 +10,19 @@ from telegram_notify import Telegram
 log = logging.getLogger("reporter")
 
 
-def trend(v: float) -> tuple[str, str]:
-    """한국식 색: 상승/이익은 빨강(🔴▲), 하락/손실은 파랑(🔵▼), 0 은 ⚪─."""
-    if v > 0:
-        return "🔴", "▲"
-    if v < 0:
-        return "🔵", "▼"
-    return "⚪", "─"
+def trend(v: float) -> str:
+    """한국식 색 이모지: 상승/이익은 빨강 🔴, 하락/손실은 파랑 🔵, 0 은 ⚪."""
+    return "🔴" if v > 0 else "🔵" if v < 0 else "⚪"
 
 
 def won(v: float) -> str:
-    """금액을 부호 대신 화살표로: ▲41,570원 / ▼16,556원"""
-    return f"{trend(v)[1]}{abs(v):,.0f}원"
+    """금액에 +/- 부호: +41,570원 / -16,556원 (0 은 부호 없이 0원)"""
+    return f"{v:+,.0f}원" if round(v) else "0원"
 
 
 def pct(v: float) -> str:
-    """수익률을 부호 대신 화살표로: ▲4.22% / ▼16.73%"""
-    return f"{trend(v)[1]}{abs(v):.2f}%"
+    """수익률에 +/- 부호: +4.22% / -16.73% (0 은 부호 없이 0.00%)"""
+    return f"{v:+.2f}%" if round(v, 2) else "0.00%"
 
 
 FIELDS =["시각", "모드", "구분", "사유", "종목코드", "종목명", "수량", "가격", "금액",
@@ -75,7 +71,7 @@ class Reporter:
         lines = [f"{icon} {side} {self.tag}", f"{name}({code})",
                  f"{qty:,}주 @{price:,.0f}원 (합계 {amount:,.0f}원)", f"사유: {reason}"]
         if pnl is not None:
-            lines.append(f"{trend(pnl)[0]} 실현손익 {won(pnl)} / 누적 {trend(cum_pnl)[0]} {won(cum_pnl)}")
+            lines.append(f"{trend(pnl)} 실현손익 {won(pnl)} / 누적 {trend(cum_pnl)} {won(cum_pnl)}")
         self.telegram.send("\n".join(lines))
 
     def event(self, text: str, once: bool = False) -> None:
