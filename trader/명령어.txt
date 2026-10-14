@@ -3,15 +3,13 @@
  ※ 명령어(옵션)가 추가/변경되면 이 파일도 같이 고칠 것
 ==================================================================
 
-[실행 위치]  main.py 는 trader 폴더 안에 있음. 터미널이 어느 폴더에 있는지에 따라 앞부분이 다름
-  trader 폴더에 있을 때   py main.py --mock
-  TGi 폴더에 있을 때      py trader\main.py --mock
-  (아래 예시는 trader 폴더 기준. TGi 폴더에서는 main.py 앞에 trader\ 를 붙일 것)
+[실행 위치]  main.py 는 trader 폴더 안에 있음
+  아래 모든 예시는 TGi 폴더(프로젝트 맨 위)에서 실행하는 기준:   py trader\main.py ...
+  trader 폴더 안에 있다면 앞의 trader\ 를 빼고:                    py main.py ...
   "can't open file ...main.py: No such file or directory" 가 나오면 위치가 틀린 것
-  이동하려면:  cd trader
 
 [기본 실행]
-  py main.py                      config.trading.jsonc 의 "실행" 선택대로 실행 (주문은 보내지 않는 dry-run)
+  py trader\main.py               config.trading.jsonc 의 "실행" 선택대로 실행 (주문은 보내지 않는 dry-run)
 
 [옵션]
   --pick  <이름|번호>              종목선택 방식
@@ -31,12 +29,12 @@
   매수      1 일괄매수 / 2 분할매수
   매도      1 스탑로스 / 2 분할매도
 
-[예시]
-  py main.py --mock                                   가짜 시세로 전체 흐름 확인
-  py main.py --mock --mock-held 5                     기보유 5종목일 때 매수가 막히는지 확인
-  py main.py --pick 3 --strategy 4 --buy 2 --sell 1 2    번호로 선택
-  py main.py --pick "실시간 조회 순위" --strategy "5% 하락" --buy 분할매수 --sell 스탑로스 분할매도
-  py main.py --live                                   모의투자 서버에 실제 주문
+[예시]  (TGi 폴더 기준)
+  py trader\main.py --mock                                   가짜 시세로 전체 흐름 확인
+  py trader\main.py --mock --mock-held 5                     기보유 5종목일 때 매수가 막히는지 확인
+  py trader\main.py --pick 3 --strategy 4 --buy 2 --sell 1 2    번호로 선택
+  py trader\main.py --pick "실시간 조회 순위" --strategy "5% 하락" --buy 분할매수 --sell 스탑로스 분할매도
+  py trader\main.py --live                                   모의투자 서버에 실제 주문
 
 [주의]
   - --live 없이는 주문이 나가지 않음 (로그에 [dry-run] 으로 표시)
@@ -44,7 +42,7 @@
   - 새 종목은 계좌 보유 종목 수가 "최대종목수" 이상이면 매수되지 않음
   - 설정은 config.trading.jsonc 에서 바꿈 (종목수/금액/한도/분할/손절 등)
 
-[깃 (푸시는 직접)]
+[깃]  커밋은 Claude 가 하고, 푸시는 직접 한다
   git status                      변경 확인
   git add -A                      변경 전체 담기 (.env, 이미지/ 는 .gitignore 로 제외됨)
   git commit -m "메시지"          커밋
