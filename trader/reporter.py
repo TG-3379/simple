@@ -67,7 +67,7 @@ class Reporter:
                 "누적실현손익": f"{cum_pnl:.0f}", "보유수량": held_after,
             })
         # 빨강/파랑은 손익 표시에만 쓰고, 매수/매도 구분은 다른 아이콘으로 (색이 겹쳐 헷갈리지 않게)
-        icon = "📥" if side == "매수" else "📤"
+        icon = "🛒" if side == "매수" else "💵"
         label = "매입금액" if side == "매수" else "매도금액"
         # 체결 알림: 제목 한 줄 + 항목마다 한 줄씩 (단가, 수량, 금액, 사유, 매도면 손익)
         lines = [f"{icon} {side} {self.tag} {name}({code})",
