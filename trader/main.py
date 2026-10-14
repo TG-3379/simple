@@ -72,6 +72,34 @@ def resolve(choice, section: dict) -> str:
     raise SystemExit(f"선택 오류: {choice!r} 는 {[(n, b.get('번호')) for n, b in section.items()]} 에 없음")
 
 
+def collect_candidates(cfg: dict, pick: str, strat: str, rep) -> list:
+    """선택한 방식(pick)의 후보를 돌려준다.
+    알림.시작시_종목목록 이 켜져 있으면 세 방식(조건검색식/관심종목/실시간 순위)의 현재 편입 종목을
+    텔레그램으로도 보낸다. 선택하지 않은 방식이 실패해도 매매는 계속하고(알림만 보냄),
+    선택한 방식이 실패하면 다른 목록을 보낸 뒤 그 오류를 던진다."""
+    send_all = cfg.get("알림", {}).get("시작시_종목목록", False)
+    names = list(cfg["종목선택"]) if send_all else [pick]
+    chosen, error = None, None
+    for name in names:
+        try:
+            found = pickers.pick(name, cfg["종목선택"][name], cfg["종목선택_상세"][name], strat)
+        except Exception as e:
+            if name == pick:
+                error = e
+            else:
+                log.warning("종목 목록 조회 실패 (%s): %s", name, e)
+                rep.event(f"종목 목록 조회 실패 ({name}): {type(e).__name__}: {str(e)[:100]}")
+            continue
+        if name == pick:
+            chosen = found
+        if send_all:
+            note = f" ({'하락률' if '하락' in strat else '상승률'} 순)" if name == "실시간 조회 순위" else ""
+            rep.stock_list(f"{name} 현재 편입 종목{note}", found)
+    if error is not None:
+        raise error
+    return chosen
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--pick")
@@ -115,7 +143,7 @@ def main() -> None:
     REPORTER.event(f"시작: {pick} / {strat} / {buy_mode} / {'+'.join(sell_modes)}")
 
     # 1. 종목선택 -> 2. 전략 필터
-    cands = MOCK if a.mock else pickers.pick(pick, cfg["종목선택"][pick], cfg["종목선택_상세"][pick], strat)
+    cands = MOCK if a.mock else collect_candidates(cfg, pick, strat, REPORTER)
     if a.mock:
         quotes.MOCK_PRICES.update({c.code: c.price for c in MOCK})
     chosen = [c for c in cands if strategies.STRATEGIES[strat](c, cfg["전략"][strat])]

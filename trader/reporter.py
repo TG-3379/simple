@@ -79,6 +79,24 @@ class Reporter:
             lines.append(f"손익: {trend(pnl)} {won(pnl)} (누적 {won(cum_pnl)})")
         self.telegram.send("\n".join(lines))
 
+    def stock_list(self, title: str, cands: list, limit: int = 3500) -> None:
+        """종목 목록 알림: 종목마다 한 줄 (색 이모지, 이름(코드), 현재가, 등락률).
+        텔레그램 글자 수 제한 때문에 길면 여러 메시지로 나눠 보낸다."""
+        head = f"📋 {title} {self.tag} - {len(cands)}종목"
+        if not cands:
+            self.telegram.send(f"{head}\n(편입된 종목 없음)")
+            return
+        rows = [f"{trend(c.change_rate)} {c.name or c.code}({c.code}) {c.price:,.0f}원 {pct(c.change_rate)}"
+                for c in cands]
+        chunk, size, part = [], len(head), 1
+        for row in rows:
+            if chunk and size + len(row) + 1 > limit:
+                self.telegram.send(f"{head} ({part})\n" + "\n".join(chunk))
+                chunk, size, part = [], len(head), part + 1
+            chunk.append(row)
+            size += len(row) + 1
+        self.telegram.send((f"{head} ({part})\n" if part > 1 else f"{head}\n") + "\n".join(chunk))
+
     def event(self, text: str, once: bool = False) -> None:
         """시작/종료/경고/오류 알림. once=True 면 같은 문구는 한 번만 보낸다."""
         if once:
