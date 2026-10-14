@@ -1,7 +1,14 @@
 ==================================================================
- 실행 명령어 요약  (trader 폴더에서 실행)
+ 실행 명령어 요약
  ※ 명령어(옵션)가 추가/변경되면 이 파일도 같이 고칠 것
 ==================================================================
+
+[실행 위치]  main.py 는 trader 폴더 안에 있음. 터미널이 어느 폴더에 있는지에 따라 앞부분이 다름
+  trader 폴더에 있을 때   py main.py --mock
+  TGi 폴더에 있을 때      py trader\main.py --mock
+  (아래 예시는 trader 폴더 기준. TGi 폴더에서는 main.py 앞에 trader\ 를 붙일 것)
+  "can't open file ...main.py: No such file or directory" 가 나오면 위치가 틀린 것
+  이동하려면:  cd trader
 
 [기본 실행]
   py main.py                      config.trading.jsonc 의 "실행" 선택대로 실행 (주문은 보내지 않는 dry-run)
