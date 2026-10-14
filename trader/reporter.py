@@ -69,12 +69,15 @@ class Reporter:
         # 빨강/파랑은 손익 표시에만 쓰고, 매수/매도 구분은 다른 아이콘으로 (색이 겹쳐 헷갈리지 않게)
         icon = "📥" if side == "매수" else "📤"
         label = "매입금액" if side == "매수" else "매도금액"
-        # 체결 알림은 한 줄: 단가 | 수량 | 금액 | 사유 (+ 매도면 손익)
-        text = (f"{icon} {side} {self.tag} {name}({code}) | 단가 {price:,.0f}원 | 수량 {qty:,}주 | "
-                f"{label} {amount:,.0f}원 | 사유 {reason}")
+        # 체결 알림: 제목 한 줄 + 항목마다 한 줄씩 (단가, 수량, 금액, 사유, 매도면 손익)
+        lines = [f"{icon} {side} {self.tag} {name}({code})",
+                 f"단가: {price:,.0f}원",
+                 f"수량: {qty:,}주",
+                 f"{label}: {amount:,.0f}원",
+                 f"사유: {reason}"]
         if pnl is not None:
-            text += f" | {trend(pnl)} 손익 {won(pnl)} (누적 {won(cum_pnl)})"
-        self.telegram.send(text)
+            lines.append(f"손익: {trend(pnl)} {won(pnl)} (누적 {won(cum_pnl)})")
+        self.telegram.send("\n".join(lines))
 
     def event(self, text: str, once: bool = False) -> None:
         """시작/종료/경고/오류 알림. once=True 면 같은 문구는 한 번만 보낸다."""
