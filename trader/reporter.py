@@ -8,7 +8,28 @@ from pathlib import Path
 from telegram_notify import Telegram
 
 log = logging.getLogger("reporter")
-FIELDS = ["시각", "모드", "구분", "사유", "종목코드", "종목명", "수량", "가격", "금액",
+
+
+def trend(v: float) -> tuple[str, str]:
+    """한국식 색: 상승/이익은 빨강(🔴▲), 하락/손실은 파랑(🔵▼), 0 은 ⚪─."""
+    if v > 0:
+        return "🔴", "▲"
+    if v < 0:
+        return "🔵", "▼"
+    return "⚪", "─"
+
+
+def won(v: float) -> str:
+    """금액을 부호 대신 화살표로: ▲41,570원 / ▼16,556원"""
+    return f"{trend(v)[1]}{abs(v):,.0f}원"
+
+
+def pct(v: float) -> str:
+    """수익률을 부호 대신 화살표로: ▲4.22% / ▼16.73%"""
+    return f"{trend(v)[1]}{abs(v):.2f}%"
+
+
+FIELDS =["시각", "모드", "구분", "사유", "종목코드", "종목명", "수량", "가격", "금액",
           "평균가", "실현손익", "누적실현손익", "보유수량"]
 
 
@@ -49,11 +70,12 @@ class Reporter:
                 "실현손익": "" if pnl is None else f"{pnl:.0f}",
                 "누적실현손익": f"{cum_pnl:.0f}", "보유수량": held_after,
             })
-        icon = "🟢" if side == "매수" else "🔴"
+        # 빨강/파랑은 손익 표시에만 쓰고, 매수/매도 구분은 다른 아이콘으로 (색이 겹쳐 헷갈리지 않게)
+        icon = "📥" if side == "매수" else "📤"
         lines = [f"{icon} {side} {self.tag}", f"{name}({code})",
                  f"{qty:,}주 @{price:,.0f}원 (합계 {amount:,.0f}원)", f"사유: {reason}"]
         if pnl is not None:
-            lines.append(f"실현손익 {pnl:+,.0f}원 / 누적 {cum_pnl:+,.0f}원")
+            lines.append(f"{trend(pnl)[0]} 실현손익 {won(pnl)} / 누적 {trend(cum_pnl)[0]} {won(cum_pnl)}")
         self.telegram.send("\n".join(lines))
 
     def event(self, text: str, once: bool = False) -> None:
