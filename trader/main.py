@@ -18,6 +18,7 @@ import pickers
 import reporter
 import quotes
 import strategies
+import telegram_notify
 from models import Candidate
 from trading import Trader
 
@@ -103,12 +104,12 @@ def main() -> None:
     if a.mock:
         REPORTER = reporter.disabled()
     else:
-        reporter.load_env()
+        telegram_notify.load_env()
         rec, alarm = cfg.get("기록", {}), cfg.get("알림", {})
         journal = reporter.Journal(Path(__file__).with_name(rec.get("폴더", "기록")), mode) \
             if rec.get("CSV", True) else None
         tg_on = alarm.get("텔레그램", False) and (a.live or alarm.get("dry-run에서도", True))
-        REPORTER = reporter.Reporter(journal, reporter.Telegram(tg_on), mode)
+        REPORTER = reporter.Reporter(journal, telegram_notify.Telegram(tg_on), mode)
         if journal:
             log.info("매매 내역 CSV: %s", journal.path)
     REPORTER.event(f"시작: {pick} / {strat} / {buy_mode} / {'+'.join(sell_modes)}")

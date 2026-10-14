@@ -6,7 +6,7 @@
 ## 반드시 지킬 규칙 (계좌와 연결된 프로젝트)
 - **실계좌 주문 코드를 만들지 않는다.** 주문은 `--live` 일 때만, 모의투자 서버로만 보낸다. 기본은 dry-run.
 - **`.env` 는 읽거나 출력하거나 커밋하지 않는다.** (APP_KEY, APP_SECRET, TELEGRAM_BOT_TOKEN 이 들어 있음) 키 이름만 볼 것.
-  텔레그램 토큰은 로그, 오류 메시지, 설정 파일에도 남기지 않는다(`reporter.py` 는 오류 종류만 기록).
+  텔레그램 토큰은 로그, 오류 메시지, 설정 파일에도 남기지 않는다(`telegram_notify.py` 는 오류 종류만 기록).
   `.env` 와 `이미지/` 는 `.gitignore` 로 제외되어 있다. 새 파일을 커밋할 때도 둘이 들어가지 않는지 확인한다.
 - **모든 매수 주문은 `Trader._buy` 한 곳을 지나간다.** 새 종목이면 여기서 `최대종목수`(계좌 전체 보유 종목 수,
   이미 가진 종목 포함)를 반드시 확인한다. 이 확인을 건너뛰는 매수 경로를 만들지 않는다.
@@ -34,7 +34,8 @@
 | `orders.py` | 주문 전송(kt10000 매수, kt10001 매도). `LIVE=False` 면 로그만 출력 |
 | `quotes.py` | 현재가 조회(ka10001). `--mock` 이면 가짜 시세 |
 | `holdings.py` | 계좌 보유 종목 조회(kt00018). 최대종목수 확인에 사용 |
-| `reporter.py` | 매매 내역 CSV 기록(`Journal`) + 텔레그램 알림(`Telegram`). 실패해도 매매는 계속 |
+| `reporter.py` | 매매 내역 CSV 기록(`Journal`)과 알림 문구 만들기(`Reporter`). 실패해도 매매는 계속 |
+| `telegram_notify.py` | 텔레그램 전송(`Telegram`)과 `.env` 읽기(`load_env`). 토큰은 여기서만 다룬다 |
 | `models.py` | `Candidate`(후보), `Position`(보유) |
 | `config.trading.jsonc` | 모든 설정(주석 허용). `main.py` 와 같은 폴더에서 읽는다 |
 | `명령어.txt` | 실행 명령어 요약 |
